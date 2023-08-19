@@ -8,6 +8,7 @@ import fe.koin.exposed.ext.transactionOrNull
 import fe.koin.helper.util.singleModule
 import io.javalin.websocket.WsContext
 import kotlinx.serialization.json.Json
+import mu.KotlinLogging
 import org.jetbrains.exposed.sql.Database
 
 val webSocketClientHandlerModule = singleModule {
@@ -15,12 +16,16 @@ val webSocketClientHandlerModule = singleModule {
 }
 
 class WebSocketClientHandler(val database: Database) {
+    private val logger = KotlinLogging.logger(WebSocketClientHandler::class.simpleName!!)
+
     data class ConnectedClient(val token: String, val ctx: WsContext, val deviceType: DeviceType)
 
     private val connectedClients = mutableMapOf<Int, MutableMap<String, ConnectedClient>>()
     private val reverseContextMapping = mutableMapOf<String, Int>()
 
     fun connect(deviceToken: String, ctx: WsContext): Boolean {
+        logger.info("Client ${ctx.sessionId} is connecting")
+
         val row = database.transactionOrNull {
             UserDevices.getDeviceAndUser(deviceToken)
         } ?: return false
@@ -35,22 +40,31 @@ class WebSocketClientHandler(val database: Database) {
     }
 
     fun disconnect(ctx: WsContext): Boolean {
+        logger.info("Client ${ctx.sessionId} is disconnecting")
         val userId = reverseContextMapping.remove(ctx.sessionId) ?: return false
-        val clients = connectedClients.remove(userId) ?: return false
-        if (clients.isEmpty()) connectedClients.remove(userId)
+        for ((_, clients) in connectedClients) {
+            clients.remove(ctx.sessionId)
+        }
+
+        if (connectedClients[userId]?.isEmpty() == true) {
+            connectedClients.remove(userId)
+        }
+
 
         return true
     }
 
     fun forwardMessage(ctx: WsContext, message: WsMessageListener.WebSocketMessage, type: DeviceType): Boolean {
-        println("${ctx.sessionId} forwards message $message to $type ($reverseContextMapping, $connectedClients)")
+        logger.info("${ctx.sessionId} wants to forward message $message to $type ($reverseContextMapping, $connectedClients)")
         val userId = reverseContextMapping[ctx.sessionId] ?: return false
         val clients = connectedClients[userId] ?: return false
-        println(clients)
+
+        logger.info("$clients")
+
+        val msg = Json.encodeToString(WsMessageListener.WebSocketMessage.serializer(), message)
         clients.filter { it.value.deviceType == type }.forEach { (_, client) ->
-            val msg = Json.encodeToString(WsMessageListener.WebSocketMessage.serializer(), message)
-            println("Sending $msg to ${client.ctx.sessionId} (${client.deviceType}, $type)")
-            client.ctx.send(Json.encodeToString(WsMessageListener.WebSocketMessage.serializer(), message))
+            logger.info("Sending $msg to ${client.ctx.sessionId} (${client.deviceType})")
+            client.ctx.send(msg)
         }
 
         return true

@@ -1,22 +1,17 @@
 package fe.aegissync.test
 
-import fe.aegissync.crypto.Crypto
-import fe.aegissync.module.database.entity.DeviceType
 import fe.aegissync.module.web.endpoint.ws.WsMessageListener
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocketListener
-import java.nio.charset.StandardCharsets
+import java.util.*
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 
 class Client1Socket : WebSocketListener() {
-    val messageHandlers: MutableList<(String) -> Unit> = mutableListOf()
-
-    override fun onMessage(webSocket: okhttp3.WebSocket, bytes: okio.ByteString) {
-        val message =
-            Json.decodeFromString(WsMessageListener.WebSocketMessage.serializer(), bytes.string(StandardCharsets.UTF_8))
+    override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+        val message = Json.decodeFromString(WsMessageListener.WebSocketMessage.serializer(), text)
         println(message)
     }
 
@@ -29,9 +24,9 @@ class Client1Socket : WebSocketListener() {
     }
 }
 
-@OptIn(ExperimentalEncodingApi::class)
 fun main() {
-    val token = "yvuryvcyGXhuDnfPr8PTdBSQChbIXRsSVW2xobdPhHRcDgS1ldGdQ7bayBQv1Ph8xJ9WneAPTU78vK7Sd5mtdiKEzgIdOa0ZbPmLlXn72iZGoe8s6oLfsXOhxYbX9DRg"
+    val token =
+        "yvuryvcyGXhuDnfPr8PTdBSQChbIXRsSVW2xobdPhHRcDgS1ldGdQ7bayBQv1Ph8xJ9WneAPTU78vK7Sd5mtdiKEzgIdOa0ZbPmLlXn72iZGoe8s6oLfsXOhxYbX9DRg"
     val client = OkHttpClient.Builder().build()
 
     val webSocket = client.newWebSocket(
@@ -39,14 +34,14 @@ fun main() {
         Client1Socket()
     )
 
-    print("Waiting.. ")
-    val input = readlnOrNull()
-    println("Input found, sending..")
 
+    println("Sending request..")
     webSocket.send(
         Json.encodeToString(
             WsMessageListener.WebSocketMessage.serializer(),
-            WsMessageListener.WebSocketMessage.RequestForDomain("google.com")
+            WsMessageListener.WebSocketMessage.RequestForDomain(UUID.randomUUID().toString(), "google.com")
         )
     )
+
+    println("Request sent, idling..")
 }
