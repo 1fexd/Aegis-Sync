@@ -1,0 +1,12 @@
+{
+  "databaseConfig": {
+    "type": "SQLite",
+    "path": "database.sqlite"
+  },
+  "storageDirectory": {
+    "path": "backup_dir"
+  },
+  "webConfig": {
+    "port": 23456
+  }
+}
